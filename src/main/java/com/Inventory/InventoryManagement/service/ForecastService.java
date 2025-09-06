@@ -19,24 +19,37 @@ public class ForecastService {
     private SalesRepository salesRepository;
     public ResponseEntity<?> calculateForecast(LocalDate startDate, int days)
     {
-        double alpha=0.7;
-        List<Sale> sales=salesRepository.findByDateOrderByDateAsc(startDate);
-        if(sales.isEmpty())
-        {
+        List<Sale> sales = salesRepository.findByDateOrderByDateAsc(startDate);
+
+        if (sales.isEmpty()) {
             logger.error("No sales data available!");
-            throw new IllegalStateException("No sales data available after "+startDate);
+            throw new IllegalStateException("No sales data available after " + startDate);
         }
-        double forecast=sales.get(0).getQuantity();
-        for(int i=1;i<sales.size();i++)
-        {
-            forecast=alpha*sales.get(i-1).getQuantity()+(1-alpha)*forecast;
+
+        int n = sales.size();
+        double sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
+
+        // Treat index as time (x), sales quantity as y
+        for (int i = 0; i < n; i++) {
+            sumX += i;
+            sumY += sales.get(i).getQuantity();
+            sumXY += i * sales.get(i).getQuantity();
+            sumX2 += i * i;
         }
+
+        // Calculate slope (b) and intercept (a)
+        double slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+        double intercept = (sumY - slope * sumX) / n;
+
+        // Forecast future days
         List<Double> futureForecasts = new ArrayList<>();
         for (int i = 0; i < days; i++) {
-            forecast = alpha * sales.get(sales.size() - 1).getQuantity() + (1 - alpha) * forecast;
+            double nextX = n + i;
+            double forecast = intercept + slope * nextX;
             futureForecasts.add(forecast);
         }
-        logger.info("Forecast calculated");
+
+        logger.info("Linear regression forecast calculated");
         return ResponseEntity.ok(futureForecasts);
     }
 }
